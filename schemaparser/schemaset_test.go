@@ -6,8 +6,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-var (
+const (
 	schemaDir = "../schema/alpha"
+	extID     = "http://github.com/kubeflow/metadata/schemaparser/testdata/ext.json"
 )
 
 func TestNewSchemaSetFromDirForAlphaSchemas(t *testing.T) {
@@ -48,8 +49,7 @@ func TestSimplePropertiesInExtendedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse schemas from files: %s", err)
 	}
-	id := "http://github.com/kubeflow/metadata/schemaparser/testdata/ext.json"
-	sp, err := ss.SimpleProperties(id)
+	sp, err := ss.SimpleProperties(extID)
 	if err != nil {
 		t.Fatalf("failed to get simple properties: %s", err)
 	}
