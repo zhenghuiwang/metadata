@@ -19,8 +19,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"reflect"
 
 	"github.com/golang/glog"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -36,6 +39,35 @@ var (
 	httpPort      = flag.Int("http_port", 8080, "HTTP serving port.")
 	schemaRootDir = flag.String("schema_root_dir", "schema/alpha", "Root directory for the predefined schemas.")
 )
+
+var typeOfBytes = reflect.TypeOf([]byte(nil))
+
+type rawJSONPb struct {
+	*runtime.JSONPb
+}
+
+// NewDecoder checks if the data is raw bytes.
+func (*rawJSONPb) NewDecoder(r io.Reader) runtime.Decoder {
+	return runtime.DecoderFunc(func(v interface{}) error {
+		rawData, err := ioutil.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		rv := reflect.ValueOf(v)
+
+		if rv.Kind() != reflect.Ptr {
+			return fmt.Errorf("%T is not a pointer", v)
+		}
+
+		rv = rv.Elem()
+		if rv.Type() != typeOfBytes {
+			return fmt.Errorf("Type must be []byte but got %T", v)
+		}
+
+		rv.Set(reflect.ValueOf(rawData))
+		return nil
+	})
+}
 
 func main() {
 	flag.Parse()
@@ -63,7 +95,13 @@ func main() {
 		}
 	}()
 
-	mux := runtime.NewServeMux()
+	jsonpb := new(runtime.JSONPb)
+	mux := runtime.NewServeMux(
+		// Add a JSON marshaler to bind the whole HTTP body as raw proto bytes.
+		runtime.WithMarshalerOption("application/raw-json", &rawJSONPb{jsonpb}),
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, jsonpb),
+		runtime.WithProtoErrorHandler(runtime.DefaultHTTPProtoErrorHandler),
+	)
 
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 	err = pb.RegisterMetadataServiceHandlerFromEndpoint(ctx, mux, rpcEndpoint, opts)

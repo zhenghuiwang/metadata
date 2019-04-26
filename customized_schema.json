@@ -1,0 +1,86 @@
+{
+    "$id": "http://github.com/kubeflow/metadata/customized.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "description": "Schema for a customized JSON",
+    "properties": {
+        "annotations": {
+            "description": "arbitrary string key/value pairs",
+            "patternProperties": {
+                "^.*$": {
+                    "type": "string"
+                }
+            },
+            "type": "object"
+        },
+        "apiversion": {
+            "description": "version of the entity type",
+            "type": "string"
+        },
+        "array-field": {
+            "description": "a field of type array",
+            "type": "array"
+        },
+        "boolean-field": {
+            "description": "a field of type boolean",
+            "type": "boolean"
+        },
+        "category": {
+            "description": "three categories of entities",
+            "enum": [
+                "artifact",
+                "execution",
+                "container"
+            ],
+            "type": "string"
+        },
+        "create_time": {
+            "description": "time when entity is created in the format of RFC3339",
+            "examples": [
+                "2018-11-13T20:20:39+00:00"
+            ],
+            "format": "date-time",
+            "type": "string"
+        },
+        "description": {
+            "description": "description of this entity",
+            "type": "string"
+        },
+        "id": {
+            "description": "unique identifier for this entity",
+            "type": "string"
+        },
+        "kind": {
+            "description": "type of this entity",
+            "type": "string"
+        },
+        "name": {
+            "description": "name of this entity",
+            "type": "string"
+        },
+        "namespace": {
+            "description": "namepace of the entity type",
+            "type": "string"
+        },
+        "object-field": {
+            "description": "a field of type object",
+            "type": "object"
+        },
+        "owner": {
+            "description": "owner of this entity",
+            "type": "string"
+        },
+        "string-field": {
+            "description": "a field of type string",
+            "type": "string"
+        }
+    },
+    "required": [
+        "id",
+        "kind",
+        "namespace",
+        "apiversion",
+        "name",
+        "category"
+    ],
+    "type": "object"
+}

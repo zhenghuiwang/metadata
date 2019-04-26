@@ -49,3 +49,13 @@ func (s *Service) GetResource(ctx context.Context, in *pb.GetResourceRequest) (*
 
 	return &pb.Resource{Name: in.Name}, nil
 }
+
+// CreateType registers a cutsomized type.
+func (s *Service) CreateType(ctx context.Context, in *pb.CreateTypeRequest) (*pb.Type, error) {
+	return &pb.Type{
+		Id:     "1",
+		Name:   in.Name,
+		Schema: string(in.Schema),
+	}, nil
+
+}
