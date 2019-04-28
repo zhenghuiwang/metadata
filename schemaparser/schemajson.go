@@ -1,5 +1,11 @@
 package schemaparser
 
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
 const (
 	// IntegerType represents JSON schema integer type
 	IntegerType = "integer"
@@ -114,4 +120,17 @@ func (sj *SchemaJSON) GetType() string {
 func (sj *SchemaJSON) IsSimpleType() bool {
 	t := sj.GetType()
 	return t == StringType || t == IntegerType || t == NumberType
+}
+
+// NewSchemaJSON cast bytes into *SchemaJSON.
+func NewSchemaJSON(b []byte) (*SchemaJSON, error) {
+	schemajson := &SchemaJSON{}
+	err := json.Unmarshal(b, schemajson)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal schema: %s", err)
+	}
+	if schemajson.ID == "" {
+		return nil, errors.New("missing $id")
+	}
+	return schemajson, nil
 }

@@ -10,6 +10,12 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 )
 
+const (
+	typeNamespace = "namespace"
+	typeKind      = "kind"
+	typeVersion   = "version"
+)
+
 // SimpleProperties are properties of type integer, double and string. The map is from property name to its type.
 type SimpleProperties map[string]string
 
@@ -22,10 +28,13 @@ type Schema struct {
 }
 
 // SchemaSet maps schema $id to its Schema. SchemaSet is inclusive, i.e. all references of schemas in this schema set must also be included in the set.
-type SchemaSet map[string]*Schema
+type SchemaSet struct {
+	loader  *gojsonschema.SchemaLoader
+	Schemas map[string]*Schema
+}
 
 // NewSchemaSetFromADir create a SchemaSet from all schema files under a directory and its descendant directories.
-func NewSchemaSetFromADir(dir string) (SchemaSet, error) {
+func NewSchemaSetFromADir(dir string) (*SchemaSet, error) {
 	files, err := doublestar.Glob(filepath.Join(dir, "**/*.json"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to find schema in directory %s: %s", dir, err)
@@ -34,8 +43,8 @@ func NewSchemaSetFromADir(dir string) (SchemaSet, error) {
 }
 
 // NewSchemaSetFromFiles create a SchemaSet from an arry of files. These files can refer each other in their definitions.
-func NewSchemaSetFromFiles(files []string) (SchemaSet, error) {
-	result := make(SchemaSet)
+func NewSchemaSetFromFiles(files []string) (*SchemaSet, error) {
+	result := make(map[string]*Schema)
 	sl, err := loadSchemas(files)
 	if err != nil {
 		return nil, err
@@ -61,13 +70,99 @@ func NewSchemaSetFromFiles(files []string) (SchemaSet, error) {
 			Validator: validator,
 		}
 	}
-	return result, nil
+	return &SchemaSet{
+		loader:  sl,
+		Schemas: result,
+	}, nil
+}
+
+// AddSchema adds a new schema into the set. It returns the schema ID or an error.
+func (ss *SchemaSet) AddSchema(b []byte) (string, error) {
+	sj, err := NewSchemaJSON(b)
+	if err != nil {
+		return "", fmt.Errorf("invaid schema: %s", err)
+	}
+	if _, exists := ss.Schemas[sj.ID]; exists {
+		return sj.ID, nil
+	}
+	sl := gojsonschema.NewBytesLoader(b)
+	err = ss.loader.AddSchema(sj.ID, sl)
+	if err != nil {
+		return "", fmt.Errorf("failed to add schema: %s", err)
+	}
+	validator, err := ss.loader.Compile(sl)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile schema: %s", err)
+	}
+	ss.Schemas[sj.ID] = &Schema{
+		JSON:      sj,
+		Validator: validator,
+	}
+	return sj.ID, nil
+}
+
+// TypeName extract the type definiton in the form of "namespaces/{namespce}/kinds/{kind}/{versions}/{version}",
+// where {namespace}, {kinde}, and {version} are from constant string properties defined in JSON schema.
+func (ss *SchemaSet) TypeName(id string) (string, error) {
+	namespace, err := ss.ConstantStringType(id, typeNamespace)
+	if err != nil {
+		return "", err
+	}
+	kind, err := ss.ConstantStringType(id, typeKind)
+	if err != nil {
+		return "", err
+	}
+	version, err := ss.ConstantStringType(id, typeVersion)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("namespaces/%s/kinds/%s/versions/%s", namespace, kind, version), nil
+}
+
+// ConstantStringType returns the constant value of a string type.
+func (ss *SchemaSet) ConstantStringType(id, name string) (string, error) {
+	p, err := ss.PropertyType(id, name)
+	if err != nil {
+		return "", err
+	}
+	if p.Constant == "" {
+		return "", fmt.Errorf("property %q is not constant in %q", name, id)
+	}
+	return p.Constant, nil
+}
+
+// PropertyType returns the type definition of property with given name in the schema of id.
+func (ss *SchemaSet) PropertyType(id, name string) (*SchemaJSON, error) {
+	schema, exists := ss.Schemas[id]
+	if !exists {
+		return nil, fmt.Errorf("failed to find schema with $id %s", id)
+	}
+	for p, sj := range schema.JSON.Properties {
+		if p == name {
+			return sj, nil
+		}
+	}
+	// Find properties in Allof.
+	for _, parent := range schema.JSON.AllOf {
+		for p, sj := range parent.Properties {
+			if p == name {
+				return sj, nil
+			}
+		}
+		if parent.Ref != nil {
+			sj, err := ss.PropertyType((string)(*parent.Ref), name)
+			if err == nil {
+				return sj, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("faield to find property %q in %q", name, id)
 }
 
 // SimpleProperties returns a map of simple properties for a schema with given id.
-func (ss SchemaSet) SimpleProperties(id string) (SimpleProperties, error) {
+func (ss *SchemaSet) SimpleProperties(id string) (SimpleProperties, error) {
 	result := make(SimpleProperties)
-	schema, exists := ss[id]
+	schema, exists := ss.Schemas[id]
 	if !exists {
 		return nil, fmt.Errorf("failed to find schema with $id %s", id)
 	}
