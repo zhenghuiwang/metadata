@@ -19,15 +19,21 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/golang/protobuf/proto"
 	pb "github.com/kubeflow/metadata/api"
 	"github.com/kubeflow/metadata/schemaparser"
+
+	"ml_metadata/metadata_store/mlmetadata"
+	mlpb "ml_metadata/proto/metadata_store_go_proto"
 )
 
 // Service implements the gRPC service MetadataService defined in the metadata
 // API spec.
 type Service struct {
 	schemaset schemaparser.SchemaSet
+	mlmd      *mlmetadata.Store
 }
 
 // NewService returns a metadata server
@@ -36,8 +42,22 @@ func NewService(schemaRootDir string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg := &mlpb.ConnectionConfig{Config: &mlpb.ConnectionConfig_Mysql{
+		&mlpb.MySQLDatabaseConfig{
+			Host:     proto.String("localhost"),
+			Port:     proto.Uint32(3306),
+			Database: proto.String("metadb"),
+			User:     proto.String("guest"),
+		},
+	},
+	}
+	mlmd, err := mlmetadata.NewStore(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect db. config: %v, error: %s", cfg, err)
+	}
 	return &Service{
 		schemaset: ss,
+		mlmd:      mlmd,
 	}, nil
 }
 

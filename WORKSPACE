@@ -2,14 +2,8 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "77dfd303492f2634de7a660445ee2d3de2960cbd52f97d8c0dffa9362d3ddef9",
-    urls = ["https://github.com/bazelbuild/rules_go/releases/download/0.18.1/rules_go-0.18.1.tar.gz"],
-)
-
-http_archive(
-    name = "bazel_gazelle",
-    sha256 = "3c681998538231a2d24d0c07ed5a7658cb72bfb5fd4bf9911157c0e9ac6a2687",
-    urls = ["https://github.com/bazelbuild/bazel-gazelle/releases/download/0.17.0/bazel-gazelle-0.17.0.tar.gz"],
+    sha256 = "492c3ac68ed9dcf527a07e6a1b2dcbf199c6bf8b35517951467ac32e421c06c1",
+    urls = ["https://github.com/bazelbuild/rules_go/releases/download/0.17.0/rules_go-0.17.0.tar.gz"],
 )
 
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
@@ -18,9 +12,142 @@ go_rules_dependencies()
 
 go_register_toolchains()
 
+http_archive(
+    name = "bazel_gazelle",
+    sha256 = "7949fc6cc17b5b191103e97481cf8889217263acf52e00b560683413af204fcb",
+    urls = ["https://github.com/bazelbuild/bazel-gazelle/releases/download/0.16.0/bazel-gazelle-0.16.0.tar.gz"],
+)
+
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
 
 gazelle_dependencies()
+
+http_archive(
+    name = "org_tensorflow",
+    sha256 = "24570d860d87dcfb936f53fb8dd30302452d0aa6b8b8537e4555c1bf839121a6",
+    strip_prefix = "tensorflow-1.13.0-rc0",
+    urls = [
+        "https://github.com/tensorflow/tensorflow/archive/v1.13.0-rc0.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "io_bazel_rules_closure",
+    sha256 = "43c9b882fa921923bcba764453f4058d102bece35a37c9f6383c713004aacff1",
+    strip_prefix = "rules_closure-9889e2348259a5aad7e805547c1a0cf311cfcd91",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_closure/archive/9889e2348259a5aad7e805547c1a0cf311cfcd91.tar.gz",
+        "https://github.com/bazelbuild/rules_closure/archive/9889e2348259a5aad7e805547c1a0cf311cfcd91.tar.gz",  # 2018-12-21
+    ],
+)
+
+load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
+
+tf_workspace()
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+
+go_repository(
+    name = "google_ml_metadata",
+    commit = "becc26ab61f82bfe7c812894f56f597949ce0fdc",
+    importpath = "github.com/google/ml-metadata",
+)
+
+new_git_repository(
+    name = "libmysqlclient",
+    build_file = "@google_ml_metadata//ml_metadata:libmysqlclient.BUILD",
+    remote = "https://github.com/MariaDB/mariadb-connector-c.git",
+    tag = "v3.0.8-release",
+    workspace_file = "@google_ml_metadata//ml_metadata:libmysqlclient.WORKSPACE",
+)
+
+go_repository(
+    name = "io_k8s_client_go",
+    build_file_proto_mode = "disable_global",
+    commit = "59698c7d9724",
+    importpath = "k8s.io/client-go",
+)
+
+go_repository(
+    name = "io_k8s_apimachinery",
+    build_file_proto_mode = "disable_global",
+    commit = "103fd098999d",
+    importpath = "k8s.io/apimachinery",
+)
+
+go_repository(
+    name = "com_github_google_gofuzz",
+    commit = "24818f796faf",
+    importpath = "github.com/google/gofuzz",
+)
+
+go_repository(
+    name = "io_k8s_sigs_controller_runtime",
+    build_extra_args = ["-exclude=vendor"],
+    commit = "5558165425ef",
+    importpath = "sigs.k8s.io/controller-runtime",
+)
+
+go_repository(
+    name = "io_k8s_api",
+    build_file_proto_mode = "disable_global",
+    commit = "2d6f90ab1293",
+    importpath = "k8s.io/api",
+)
+
+go_repository(
+    name = "io_k8s_kubernetes",
+    build_file_generation = "on",
+    build_file_proto_mode = "disable",
+    importpath = "k8s.io/kubernetes",
+    tag = "v1.11.1",
+)
+
+go_repository(
+    name = "com_github_googleapis_gnostic",
+    build_file_proto_mode = "disable",
+    importpath = "github.com/googleapis/gnostic",
+    tag = "v0.2.0",
+)
+
+# for @io_k8s_kubernetes
+http_archive(
+    name = "io_kubernetes_build",
+    sha256 = "1188feb932cefad328b0a3dd75b3ebd1d79dd26dbdd723f019ceb760e27ba6d8",
+    strip_prefix = "repo-infra-84d52408a061e87d45aebf5a0867246bdf66d180",
+    urls = ["https://github.com/kubernetes/repo-infra/archive/84d52408a061e87d45aebf5a0867246bdf66d180.tar.gz"],
+)
+
+BAZEL_BUILDTOOLS_VERSION = "49a6c199e3fbf5d94534b2771868677d3f9c6de9"
+
+http_archive(
+    name = "com_github_bazelbuild_buildtools",
+    sha256 = "edf39af5fc257521e4af4c40829fffe8fba6d0ebff9f4dd69a6f8f1223ae047b",
+    strip_prefix = "buildtools-%s" % BAZEL_BUILDTOOLS_VERSION,
+    url = "https://github.com/bazelbuild/buildtools/archive/%s.zip" % BAZEL_BUILDTOOLS_VERSION,
+)
+
+http_archive(
+    name = "com_github_grpc_ecosystem_grpc_gateway",
+    strip_prefix = "grpc-gateway-1.6.3",
+    url = "https://github.com/grpc-ecosystem/grpc-gateway/archive/v1.6.3.tar.gz",
+)
+
+go_repository(
+    name = "com_github_go_swagger",
+    importpath = "github.com/go-swagger/go-swagger",
+    tag = "v0.18.0",
+)
+
+http_archive(
+    name = "com_github_mbrukman_autogen",
+    strip_prefix = "autogen-0.3",
+    url = "https://github.com/mbrukman/autogen/archive/v0.3.tar.gz",
+)
+
+# The following were generated by Gazelle. If go.mod is updated, delete the
+# following lines and run:
+# bazel run //:gazelle -- update-repos --from_file=go.mod
 
 go_repository(
     name = "org_golang_google_grpc",
@@ -283,3 +410,4 @@ go_repository(
     commit = "f727befe758c",
     importpath = "golang.org/x/tools",
 )
+
