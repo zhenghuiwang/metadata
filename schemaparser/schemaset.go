@@ -13,7 +13,7 @@ import (
 const (
 	typeNamespace = "namespace"
 	typeKind      = "kind"
-	typeVersion   = "version"
+	typeVersion   = "apiversion"
 )
 
 // SimpleProperties are properties of type integer, double and string. The map is from property name to its type.
@@ -86,10 +86,6 @@ func (ss *SchemaSet) AddSchema(b []byte) (string, error) {
 		return sj.ID, nil
 	}
 	sl := gojsonschema.NewBytesLoader(b)
-	err = ss.loader.AddSchema(sj.ID, sl)
-	if err != nil {
-		return "", fmt.Errorf("failed to add schema: %s", err)
-	}
 	validator, err := ss.loader.Compile(sl)
 	if err != nil {
 		return "", fmt.Errorf("failed to compile schema: %s", err)
@@ -126,7 +122,7 @@ func (ss *SchemaSet) ConstantStringType(id, name string) (string, error) {
 		return "", err
 	}
 	if p.Constant == "" {
-		return "", fmt.Errorf("property %q is not constant in %q", name, id)
+		return "", fmt.Errorf("property %q is not constant in %s, SchemaJSON %+v", name, id, p)
 	}
 	return p.Constant, nil
 }
@@ -142,8 +138,10 @@ func (ss *SchemaSet) PropertyType(id, name string) (*SchemaJSON, error) {
 			return sj, nil
 		}
 	}
-	// Find properties in Allof.
-	for _, parent := range schema.JSON.AllOf {
+	// Find properties in Allof in reverse order.
+	l := len(schema.JSON.AllOf)
+	for i := l - 1; i >= 0; i-- {
+		parent := schema.JSON.AllOf[i]
 		for p, sj := range parent.Properties {
 			if p == name {
 				return sj, nil

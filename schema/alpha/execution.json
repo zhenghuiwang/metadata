@@ -7,9 +7,6 @@
         },
         {
             "properties": {
-                "apiversion": {
-                    "constant": "alpha"
-                },
                 "category": {
                     "constant": "execution"
                 },

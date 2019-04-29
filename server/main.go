@@ -37,7 +37,7 @@ var (
 	host          = flag.String("host", "localhost", "Hostname to listen on.")
 	rpcPort       = flag.Int("rpc_port", 9090, "RPC serving port.")
 	httpPort      = flag.Int("http_port", 8080, "HTTP serving port.")
-	schemaRootDir = flag.String("schema_root_dir", "schema/alpha", "Root directory for the predefined schemas.")
+	schemaRootDir = flag.String("schema_root_dir", "/usr/local/google/home/zhenghui/go/src/github.com/kubeflow/metadata/schema/alpha", "Root directory for the predefined schemas.")
 )
 
 var typeOfBytes = reflect.TypeOf([]byte(nil))

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/golang/glog"
 	"github.com/golang/protobuf/proto"
 	pb "github.com/kubeflow/metadata/api"
 	"github.com/kubeflow/metadata/schemaparser"
@@ -32,8 +33,10 @@ import (
 // Service implements the gRPC service MetadataService defined in the metadata
 // API spec.
 type Service struct {
-	schemaset schemaparser.SchemaSet
-	mlmd      *mlmetadata.Store
+	schemaset        *schemaparser.SchemaSet
+	mlmd             *mlmetadata.Store
+	typeNameToID     map[string]string
+	typeNameToMLMDID map[string]int64
 }
 
 // NewService returns a metadata server
@@ -52,13 +55,65 @@ func NewService(schemaRootDir string) (*Service, error) {
 	},
 	}
 	mlmd, err := mlmetadata.NewStore(cfg)
+	typeNameToID := make(map[string]string)
+	typeNameToMLMDID := make(map[string]int64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect db. config: %v, error: %s", cfg, err)
+		return nil, fmt.Errorf("failed to connect MySQL. config: %v, error: %s", cfg, err)
+	}
+	glog.Infof("len(schema) = %d", len(ss.Schemas))
+	for id := range ss.Schemas {
+		tn, err := ss.TypeName(id)
+		if err != nil {
+			glog.Errorf("Ignored incomplete schema %s\n", id)
+			continue
+		}
+		glog.Infof("process schema %+v", tn)
+		artifactType, err := getMLMDType(ss, id, tn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert to MLMD type: %s", err)
+		}
+		mlmdID, err := mlmd.PutArtifactType(
+			artifactType,
+			&mlmetadata.PutTypeOptions{AllFieldsMustMatch: true},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error response from MLMD server: %s", err)
+		}
+		typeNameToID[id] = tn
+		typeNameToMLMDID[id] = int64(mlmdID)
+		glog.Infof("Register type: %+v\n", artifactType)
+
 	}
 	return &Service{
-		schemaset: ss,
-		mlmd:      mlmd,
+		schemaset:        ss,
+		mlmd:             mlmd,
+		typeNameToID:     typeNameToID,
+		typeNameToMLMDID: typeNameToMLMDID,
 	}, nil
+}
+
+func getMLMDType(ss *schemaparser.SchemaSet, id string, name string) (*mlpb.ArtifactType, error) {
+	properties, err := ss.SimpleProperties(id)
+	if err != nil {
+		return nil, err
+	}
+	artifactType := &mlpb.ArtifactType{
+		Name:       &name,
+		Properties: make(map[string]mlpb.PropertyType),
+	}
+	for pname, ptype := range properties {
+		switch ptype {
+		case schemaparser.StringType:
+			artifactType.Properties[pname] = mlpb.PropertyType_STRING
+		case schemaparser.IntegerType:
+			artifactType.Properties[pname] = mlpb.PropertyType_INT
+		case schemaparser.NumberType:
+			artifactType.Properties[pname] = mlpb.PropertyType_DOUBLE
+		default:
+			return nil, fmt.Errorf("unknown type %q for property %q", ptype, pname)
+		}
+	}
+	return artifactType, nil
 }
 
 // GetResource returns the specified resource in the request.
