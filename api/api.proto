@@ -62,6 +62,14 @@ service MetadataService {
       body: "schema" // bind the HTTP body to Type.schema field.
     };
   }
+
+  rpc CreateArtifact(Artifact) returns (Artifact) {
+    option (google.api.http) = {
+      // bind the relative resource name to Type.name field.
+      post: "/api/v1/artifact/{typeName=namespaces/*/kinds/*/versions/*}"
+      body: "payload" // bind the HTTP body to Type.schema field.
+    };
+  }
 }
 
 // Entity Type.
@@ -84,4 +92,13 @@ message CreateTypeRequest {
   string name = 1;
   // type specification via a JSON string of a OpenAPI schema object.
   bytes schema = 2;
+}
+
+message Artifact {
+  // UUID of this entity in the system.
+  string id = 1;
+  // the name of the entity type, corresponding to one registered "Type.name" field.
+  string typeName = 2;
+  // JSON representation of the entity.
+  bytes payload = 3;
 }

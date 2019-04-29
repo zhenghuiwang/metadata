@@ -18,6 +18,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -25,10 +26,13 @@ import (
 	"github.com/golang/protobuf/proto"
 	pb "github.com/kubeflow/metadata/api"
 	"github.com/kubeflow/metadata/schemaparser"
+	"github.com/xeipuuv/gojsonschema"
 
 	"ml_metadata/metadata_store/mlmetadata"
 	mlpb "ml_metadata/proto/metadata_store_go_proto"
 )
+
+const payloadKey = "__PAYLOAD__"
 
 // Service implements the gRPC service MetadataService defined in the metadata
 // API spec.
@@ -60,14 +64,14 @@ func NewService(schemaRootDir string) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect MySQL. config: %v, error: %s", cfg, err)
 	}
-	glog.Infof("len(schema) = %d", len(ss.Schemas))
+	glog.Infof("len(schemas) = %d", len(ss.Schemas))
 	for id := range ss.Schemas {
 		tn, err := ss.TypeName(id)
 		if err != nil {
-			glog.Errorf("Ignored incomplete schema %s\n", id)
+			glog.Errorf("Ignored schema for missing 'kind', 'apiversion', or 'namespace'. schema $id = %s\n", id)
 			continue
 		}
-		glog.Infof("process schema %+v", tn)
+		glog.Infof("Processng schema %s\n", tn)
 		artifactType, err := getMLMDType(ss, id, tn)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert to MLMD type: %s", err)
@@ -79,9 +83,9 @@ func NewService(schemaRootDir string) (*Service, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error response from MLMD server: %s", err)
 		}
-		typeNameToID[id] = tn
-		typeNameToMLMDID[id] = int64(mlmdID)
-		glog.Infof("Register type: %+v\n", artifactType)
+		typeNameToID[tn] = id
+		typeNameToMLMDID[tn] = int64(mlmdID)
+		glog.Infof("Registered type: %+v\n", artifactType)
 
 	}
 	return &Service{
@@ -113,6 +117,7 @@ func getMLMDType(ss *schemaparser.SchemaSet, id string, name string) (*mlpb.Arti
 			return nil, fmt.Errorf("unknown type %q for property %q", ptype, pname)
 		}
 	}
+	artifactType.Properties[payloadKey] = mlpb.PropertyType_STRING
 	return artifactType, nil
 }
 
@@ -133,4 +138,78 @@ func (s *Service) CreateType(ctx context.Context, in *pb.CreateTypeRequest) (*pb
 		Schema: string(in.Schema),
 	}, nil
 
+}
+
+// CreateArtifact creates an artifact.
+func (s *Service) CreateArtifact(ctx context.Context, in *pb.Artifact) (*pb.Artifact, error) {
+	id, exists := s.typeNameToID[in.GetTypeName()]
+	if !exists {
+		return nil, fmt.Errorf("type %q not registered", in.GetTypeName())
+	}
+	payload := make(map[string]interface{})
+	err := json.Unmarshal(in.GetPayload(), &payload)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP body is invalid JSON: %s", err)
+	}
+	if _, exists := payload["id"]; !exists {
+		payload["id"] = ""
+	}
+	result, err := s.schemaset.Schemas[id].Validator.Validate(gojsonschema.NewBytesLoader(in.GetPayload()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate payload: %s", err)
+	}
+	if !result.Valid() {
+		return nil, fmt.Errorf("invalid payload: %+v", result.Errors())
+	}
+
+	simpleProperties, err := s.schemaset.SimpleProperties(id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get SimpleProperties from schema. %s", err)
+	}
+	artifact := &mlpb.Artifact{
+		TypeId:     proto.Int64(s.typeNameToMLMDID[in.GetTypeName()]),
+		Properties: make(map[string]*mlpb.Value),
+	}
+	p := artifact.Properties
+	for pname, ptype := range simpleProperties {
+		val, exists := payload[pname]
+		if !exists {
+			continue
+		}
+		switch ptype {
+		case schemaparser.StringType:
+			p[pname] = &mlpb.Value{
+				Value: &mlpb.Value_StringValue{
+					StringValue: val.(string),
+				},
+			}
+		case schemaparser.IntegerType:
+			p[pname] = &mlpb.Value{
+				Value: &mlpb.Value_IntValue{
+					IntValue: val.(int64),
+				},
+			}
+		case schemaparser.NumberType:
+			p[pname] = &mlpb.Value{
+				Value: &mlpb.Value_DoubleValue{
+					DoubleValue: val.(float64),
+				},
+			}
+		default:
+			return nil, fmt.Errorf("unknown type %q of property %q", ptype, pname)
+		}
+	}
+	p[payloadKey] = &mlpb.Value{
+		Value: &mlpb.Value_StringValue{
+			StringValue: string(in.GetPayload()),
+		},
+	}
+	ids, err := s.mlmd.PutArtifacts([]*mlpb.Artifact{artifact})
+	if err != nil {
+		return nil, fmt.Errorf("Failed to put artifact into MLMD: %s", err)
+	}
+	return &pb.Artifact{
+		Id:       fmt.Sprintf("%s", ids[0]),
+		TypeName: in.GetTypeName(),
+	}, nil
 }
