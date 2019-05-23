@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+import swagger_client as sc
+from swagger_client import Configuration, ApiClient, MetadataServiceApi
+
 """
 This module conatins Python API for logging metadata of machine learning
 workflows to Kubeflow Metadata service.
@@ -37,12 +41,26 @@ class Workspace(object):
       labels {object} Optional key/value string pairs to label the workspace.
     """
     # TODO(zhenghuiwang): check each field's type and whether set.
-    self.backend_url_prefix = backend_url_prefix
     self.name = name
     self.description = description
     self.labels = labels
     self._user = "" #TODO: get user from env
     self._id = ""
+    self._init_swagger_client(backend_url_prefix)
+    self._save_workspace()
+
+  def _init_swagger_client(self, backend_url_prefix):
+    config = Configuration()
+    config.host = backend_url_prefix
+    self._client = MetadataServiceApi(ApiClient(config))
+
+
+  def _save_workspace(self):
+    body = sc.ApiArtifactType(
+      name="test_arftifact_type",
+    )
+    print(self._client.create_artifact_type(body))
+
 
 class Run(object):
   """
