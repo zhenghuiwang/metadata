@@ -39,3 +39,14 @@ swagger-py-client:
     rm -rf sdk/python/kfmd/swagger_client && \
     cp -r /tmp/swagger/openapi_client sdk/python/kfmd/ && \
     rm -rf /tmp/swagger
+
+swagger-js-client:
+	mkdir -p /tmp/swagger/js_client
+	./api/generate_proto.sh && \
+	wget http://central.maven.org/maven2/org/openapitools/openapi-generator-cli/4.0.1/openapi-generator-cli-4.0.1.jar -O /tmp/swagger/swagger-codegen-cli.jar && \
+    java -jar /tmp/swagger/swagger-codegen-cli.jar generate \
+    	-i api/service.swagger.json \
+    	-g typescript-node \
+    	-o /tmp/swagger/js_client && \
+	rm -rf js_client && \
+    cp -r /tmp/swagger/js_client js_client
