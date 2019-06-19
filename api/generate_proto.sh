@@ -31,6 +31,15 @@ cd "${WORKING_DIRECTORY}"
 # Delete currently generated code.
 rm -r -f *.go
 
+# Backup the service proto files
+cp service.proto service_proto.backup
+
+# Fix incorrectly generated HTTP path in swagger file due to
+# https://github.com/grpc-ecosystem/grpc-gateway/issues/407 by
+# replacing HTTP path pattern "/{VAR=<subpaths>}..." with "/{VAR}...".
+sed -r --in-place 's/\{(\w+)=(\w+)s\/\*\*\}/\{\2_\1\}/g;' service.proto
+sed -r --in-place 's/\{(\w+)=(\w+)\/\*\*\/(\w+)s\/\*\}/\{\3_\1\}/g;' service.proto
+
 # Build required tools.
 bazel build @com_github_mbrukman_autogen//:autogen_tool
 
@@ -53,11 +62,9 @@ done
 for GENERATED_FILE in $GENERATED_SWAGGER_FILES; do
   TARGET=$(basename "${GENERATED_FILE}")
   cp "${GENERATED_FILE}" "${TARGET}"
-  # Fix incorrectly generated HTTP path in swagger file due to
-  # https://github.com/grpc-ecosystem/grpc-gateway/issues/407 by
-  # replacing HTTP path pattern "/{VAR=<subpaths>}..." with "/{VAR}...".
-  sed -r --in-place 's/\{(\w+)=[a-zA-Z_/*]+\}/\{\1\}/g;' "${TARGET}"
 done
+
+mv service_proto service.proto
 
 # Finally, run gazelle to add BUILD files for the generated code.
 bazel run //:gazelle
