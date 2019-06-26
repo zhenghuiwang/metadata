@@ -18,7 +18,14 @@ class TestMetedata(unittest.TestCase):
         description="first run in ws_1",
     )
 
-    data_set = r.log(
+    e = metadata.Execution(
+        name="test execution",
+        workspace=ws1,
+        run=r,
+    )
+    assert e.id
+
+    data_set = e.log_input(
         metadata.DataSet(
             description="an example data",
             name="mytable-dump",
@@ -28,7 +35,7 @@ class TestMetedata(unittest.TestCase):
             query="SELECT * FROM mytable"))
     assert data_set.id
 
-    metrics = r.log(
+    metrics = e.log_output(
         metadata.Metrics(
             name="MNIST-evaluation",
             description="validating the MNIST model to recognize handwritten digits",
@@ -41,7 +48,7 @@ class TestMetedata(unittest.TestCase):
             labels={"mylabel": "l1"}))
     assert metrics.id
 
-    model = r.log(
+    model = e.log_output(
         metadata.Model(
             name="MNIST",
             description="model to recognize handwritten digits",
@@ -67,7 +74,12 @@ class TestMetedata(unittest.TestCase):
     self.assertTrue(len(ws1.list(metadata.DataSet.ARTIFACT_TYPE_NAME)) > 0)
 
   def test_log_invalid_artifacts_should_fail(self):
-    r = metadata.Run(name="test run")
+    ws = metadata.Workspace(
+    backend_url_prefix="127.0.0.1:8080",
+    name="ws_1",
+    description="a workspace for testing",
+    labels={"n1": "v1"})
+    e = metadata.Execution(name="test execution", workspace=ws)
     artifact1 = ArtifactFixture(openapi_client.MlMetadataArtifact(
         uri="gs://uri",
         custom_properties={
@@ -75,7 +87,7 @@ class TestMetedata(unittest.TestCase):
             openapi_client.MlMetadataValue(string_value="ws1"),
         }
     ))
-    self.assertRaises(ValueError, r.log, artifact1)
+    self.assertRaises(ValueError, e.log_input, artifact1)
     artifact2 = ArtifactFixture(openapi_client.MlMetadataArtifact(
         uri="gs://uri",
         custom_properties={
@@ -83,7 +95,7 @@ class TestMetedata(unittest.TestCase):
             openapi_client.MlMetadataValue(string_value="run1"),
         }
     ))
-    self.assertRaises(ValueError, r.log, artifact2)
+    self.assertRaises(ValueError, e.log_output, artifact2)
 
 class ArtifactFixture(object):
   ARTIFACT_TYPE_NAME = "artifact_types/kubeflow.org/alpha/artifact_fixture"
