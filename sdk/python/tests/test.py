@@ -22,6 +22,7 @@ class TestMetedata(unittest.TestCase):
         name="test execution",
         workspace=ws1,
         run=r,
+        description="an execution",
     )
     assert e.id
 
@@ -68,10 +69,21 @@ class TestMetedata(unittest.TestCase):
             labels={"mylabel": "l1"}))
     assert model.id
 
+    # Test listing artifacts in a workspace
     self.assertTrue(len(ws1.list()) > 0)
     self.assertTrue(len(ws1.list(metadata.Model.ARTIFACT_TYPE_NAME)) > 0)
     self.assertTrue(len(ws1.list(metadata.Metrics.ARTIFACT_TYPE_NAME)) > 0)
     self.assertTrue(len(ws1.list(metadata.DataSet.ARTIFACT_TYPE_NAME)) > 0)
+
+    # Test lineage tracking.
+    output_events = ws1._client.search_events2(model.id).events
+    assert len(output_events) == 1
+    execution_id = output_events[0].execution_id
+    assert execution_id == e.id
+    all_events = ws1._client.search_events(execution_id).events
+    assert len(all_events) == 3
+
+
 
   def test_log_invalid_artifacts_should_fail(self):
     ws = metadata.Workspace(

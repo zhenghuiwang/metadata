@@ -130,14 +130,14 @@ class Execution(object):
     Args:
       name {str} -- Requried name of this run.
       workspace {Worspace} -- required workspace object.
-      run {Run} -- optional workspace object.
+      run {Run} -- optional run object.
       description {str} -- Optional description.
 
     Creates a new execution in a workspace and run.
     The exection.log_XXX() methods will attach corresponding artifacts as the
     input or output of this execution.
 
-    Returns a execution object for logging.
+    Returns an execution object for logging.
     """
     # TODO(zhenghuiwang): check each field's type and whether set.
     self.id = None
@@ -161,10 +161,11 @@ class Execution(object):
             openapi_client.MlMetadataValue(string_value=self.name),
         "create_time":
             openapi_client.MlMetadataValue(string_value=self.create_time),
+        "description":
+            openapi_client.MlMetadataValue(string_value=self.description),
     })
-    if self.description != None:
-        execution.properties["description"] = openapi_client.MlMetadataValue(
-          string_value=self.description),
+    if self.description == None:
+      del execution.properties["description"]
 
     execution.custom_properties = {}
     if self.workspace != None:
@@ -193,7 +194,6 @@ class Execution(object):
       artifact_id=artifact.id,
       execution_id=self.id,
       type=openapi_client.MlMetadataEventType.INPUT
-
     )
     self.workspace._client.create_event(input_event)
     return artifact
@@ -214,7 +214,6 @@ class Execution(object):
       artifact_id=artifact.id,
       execution_id=self.id,
       type=openapi_client.MlMetadataEventType.OUTPUT
-
     )
     self.workspace._client.create_event(output_event)
     return artifact
@@ -222,7 +221,7 @@ class Execution(object):
 
   def _log(self, artifact):
     """
-    Log an artifact .
+    Log an artifact.
 
     This method expects `artifact` to have
       - ARTIFACT_TYPE_NAME string field the form of
